@@ -18,6 +18,7 @@ public class CodeWriter {
     /** connection to the output file where our hack assembly code will be written **/
     private PrintWriter outputFile;
     private ArithmeticHashMap arithmeticMapper;
+    private IdentifierMapper identifierMapper;
     private String outputFileName;
     private int labelNum;
 
@@ -429,5 +430,37 @@ public class CodeWriter {
      * Closes the output file.
      */
     public void close() { outputFile.close(); }
+
+    public void writeLabel(String labelName) {
+        outputFile.write("(" + labelName + ")\n");
+        outputFile.flush();
+    }
+
+    public void writeGoTo(String labelName) {
+        outputFile.write("@" + labelName + "\n0;JMP\n");
+        outputFile.flush();
+    }
+
+    public void writeIfGoTo(String labelName) {
+        outputFile.write("@SP\nA = M - 1\nD = M + 1\n@" + labelName + "\nD;JEQ\n");
+        outputFile.flush();
+    }
+
+    public void writeFunction(String functionName, int nVars) {
+
+    }
+
+    public void writeCall(String functionName, int nVars) {
+
+    }
+
+    public void writeReturn() {
+
+    }
+
+
+
+
+
 
 }
