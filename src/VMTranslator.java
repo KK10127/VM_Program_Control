@@ -43,8 +43,24 @@ public class VMTranslator {
                 if (DEBUG) System.out.println("command type is push or pop");
                 codeWriter.writePushPop(parser.getCommandType(), parser.getArg2(),
                         parser.arg3());
-            } else {
-                // nothing
+            } else if (parser.getCommandType() == CommandType.C_LABEL) {
+                if (DEBUG) System.out.println("command type is a label declaration");
+                codeWriter.writeLabel(parser.getArg2()); // TODO: Write the method for this
+            } else if (parser.getCommandType() == CommandType.C_GOTO) {
+                if (DEBUG) System.out.println("command is a unconditional GOTO");
+                codeWriter.writeGoTo(parser.getArg2()); // TODO: Write the method for this
+            } else if (parser.getCommandType() == CommandType.C_IF) {
+                if (DEBUG) System.out.println("command is an if-goto");
+                codeWriter.writeIfGoTo(parser.getArg2()); // TODO: Write the method for this
+            } else if (parser.getCommandType() == CommandType.C_FUNCTION) {
+                if (DEBUG) System.out.println("command type is a function declaration");
+                codeWriter.writeFunction(parser.getArg2(), parser.arg3()) // TODO: Write the method for this
+            } else if (parser.getCommandType() == CommandType.C_CALL) {
+                if (DEBUG) System.out.println("command type is a function call");
+                codeWriter.writeCall(parser.getArg2(), parser.arg3()); // TODO: Write the method for this
+            } else if (parser.getCommandType() == CommandType.C_RETURN) {
+                if (DEBUG) System.out.println("command is a return");
+                codeWriter.writeReturn(); // TODO: Write the method for this
             }
 
         }

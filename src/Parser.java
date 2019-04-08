@@ -154,14 +154,56 @@ public class Parser {
         } else if (validateBranchingCommand(firstWord)) {
             String secondWord = st.nextToken(" ");
 
-            // let this secondWord be the label
+            // set the command
+            switch (firstWord) {
+                case "label":
+                    commandType = CommandType.C_LABEL;
+                    break;
+                case "goto":
+                    commandType = CommandType.C_GOTO;
+                    break;
+                case "if-goto":
+                    commandType = CommandType.C_IF;
+                    break;
+            }
 
+            // let the second argument be the secondWord
+            // we are defining a label so we will recognize this as the label we wish to define.
+            // TODO: Check the label mapper to see if this word has already been mapped
+            // TODO: Make a label mapper lol
+            arg2 = secondWord;
+
+            // checking for extraneous syntax
+            if (st.hasMoreTokens()) {
+                String badToken = st.nextToken();
+                throw new VMTranslatorException("[ILLEGAL SYNTAX]: label commands must be two-part -> found extraneous '"
+                        + badToken + "'");
+            }
         } else if (validateFunctionCommand(firstWord)) {
             String secondWord = st.nextToken(" ");
 
+            // set the command
+            switch (firstWord) {
+                case "function":
+                    commandType = CommandType.C_FUNCTION;
+                    break;
+                case "call":
+                    commandType = CommandType.C_CALL;
+                    break;
+                case "return":
+                    commandType = CommandType.C_RETURN;
+                    break;
+            }
+
             // let this second word be the function name
+            // TODO: Check the function name mapper to see if this word has already been mapped
+            // TODO: Make a function mapper lol <- combine with the label mapper??
+            arg2 = secondWord;
 
             // let the next integer be the nArgs
+            // get the specific number (this will be the nArgs)
+            setArg3(Integer.parseInt(st.nextToken()));
+
         } else {
             throw new VMTranslatorException("[INVALID COMMAND]: unrecognized command '" + firstWord + "'");
         }
