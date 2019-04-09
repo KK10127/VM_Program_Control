@@ -21,6 +21,8 @@ public class CodeWriter {
     private IdentifierMapper identifierMapper;
     private String outputFileName;
     private int labelNum;
+    private int valuableLinesWritten;
+    private int currentNumParams;
 
     /**
      * Class extension of a HashMap
@@ -52,6 +54,7 @@ public class CodeWriter {
                     ((String) key).equals("lt") ||
                     ((String) key).equals("eq")) {
                 labelNum++;
+
 
                 // update the new values
                 this.put("gt","@SP\n" +
@@ -105,9 +108,26 @@ public class CodeWriter {
                         "A = M - 1\n" +
                         "M = -1\n" +
                         getContinueLabel());
+
+                valuableLinesWritten += 15;
+            } else if (key.equals("add")) {
+                valuableLinesWritten += 5;
+            } else if (key.equals("sub")) {
+                valuableLinesWritten += 5;
+            } else if (key.equals("neg")) {
+                valuableLinesWritten += 3;
+            } else if (key.equals("and")) {
+                valuableLinesWritten += 5;
+            } else if (key.equals("or")) {
+                valuableLinesWritten += 5;
+            } else if (key.equals("not")) {
+                valuableLinesWritten += 3;
             }
 
+
+
             // return the previous/current value
+
             return oldValue;
         }
     }
@@ -135,6 +155,8 @@ public class CodeWriter {
 
         }
 
+        valuableLinesWritten = 0;
+        currentNumParams = 0;
         arithmeticMapper = new ArithmeticHashMap();
 
         // build the arithmetic mapper
@@ -278,6 +300,8 @@ public class CodeWriter {
                         "M = D\n" +
                         "@SP\n" +
                         "M = M + 1\n";
+
+                        valuableLinesWritten += 10;
             } else {
                 code = code + "@" + index + "\n" +
                         "D = A\n" +
@@ -292,6 +316,8 @@ public class CodeWriter {
                         "@addr\n" +
                         "A = M\n" +
                         "M = D\n";
+
+                        valuableLinesWritten += 13;
             }
         // handling the constant segment
         } else if (segment.equals("constant")) {
@@ -302,6 +328,8 @@ public class CodeWriter {
                     "AM = M + 1\n" +
                     "A = A - 1\n" +
                     "M = D\n";
+
+            valuableLinesWritten += 6;
 
 
             if (VMTranslator.DEBUG) System.out.println("\t\tcodeWriter - > WRITING CONSTANT CODE");
@@ -314,6 +342,7 @@ public class CodeWriter {
                             "D = M\n" +
                             "@" + outputFileName.substring(14,outputFileName.indexOf('.')) + "." + index + "\n" +
                             "M = D\n";
+                    valuableLinesWritten += 5;
                     break;
                 case C_PUSH:
                     code = code + "@" + outputFileName.substring(14,outputFileName.indexOf('.')) + "." + index + "\n" +
@@ -322,6 +351,7 @@ public class CodeWriter {
                             "AM = M + 1\n" +
                             "A = A - 1\n" +
                             "M = D\n";
+                    valuableLinesWritten += 6;
                     break;
             }
         // now for the temp segment
@@ -338,6 +368,7 @@ public class CodeWriter {
                         "M = D\n" +
                         "@SP\n" +
                         "M = M + 1\n";
+                valuableLinesWritten += 10;
             } else {
                 code = code + "@" + index + "\n" +
                         "D = A\n" +
@@ -351,6 +382,7 @@ public class CodeWriter {
                         "@addr\n" +
                         "A = M\n" +
                         "M = D\n";
+                valuableLinesWritten += 12;
             }
         // and the pointer segment
         } else if (segment.equals("pointer")) {
@@ -365,12 +397,14 @@ public class CodeWriter {
                         "AM = M + 1\n" +
                         "A = A - 1\n" +
                         "M = D\n";
+                valuableLinesWritten += 6;
             } else if (commandType == CommandType.C_POP) {
                 code = code + "@SP\n" +
                         "AM = M - 1\n" +
                         "D = M\n" +
                         "@" + thisOrThat + "\n" +
                         "M = D\n";
+                valuableLinesWritten += 5;
             } else {
                 // well then why am I in this method?
             }
@@ -393,6 +427,7 @@ public class CodeWriter {
                 "@END\n" +
                 "0;JMP\n";
 
+        valuableLinesWritten += 2;
         // write and flush
         outputFile.write(code);
         outputFile.flush();
@@ -439,26 +474,116 @@ public class CodeWriter {
     public void writeGoTo(String labelName) {
         outputFile.write("@" + labelName + "\n0;JMP\n");
         outputFile.flush();
+        valuableLinesWritten += 2;
     }
 
     public void writeIfGoTo(String labelName) {
         outputFile.write("@SP\nA = M - 1\nD = M + 1\n@" + labelName + "\nD;JEQ\n");
         outputFile.flush();
+        valuableLinesWritten += 5;
     }
 
     public void writeFunction(String functionName, int nVars) {
+        // in assembly, functions are really just labels.
+        // so I'm going to simple write a label at this write Command.
+        outputFile.write("(" + functionName + ")\n") ;
+        currentNumParams = nVars;
 
+        outputFile.write("@SP\n" +
+                "D = M\n" +
+                "@LCL\n" +
+                "M = D\n" + // point the LCL segment
+                "@SP\n" + // go to SP
+                );
+
+        for (int i = 1; i <= nVars;i++) {
+            outputFile.write("M = M + 1\n"); // move the stack pointer
+        }
+
+        valuableLinesWritten += (5 + nVars);
+        outputFile.flush();
     }
 
     public void writeCall(String functionName, int nVars) {
+        // calling needs to accomplish the following:
+        // 1. sets the ARG pointer
+        // 2. Saves the callers frame onto the stack
+        //      - return address, saved LCL, ARG, THIS, THAT
+        // 3.
+
+        // first lets push the function's callers frame onto the stack.
+        // push the return address onto the stack
+        outputFile.write("@" + (valuableLinesWritten + 37 + (5 + nVars)) + "\n" +
+                "D = A\n" +
+                "@SP\n" +
+                "AM = M + 1\n" +
+                "A = A-1\n" +
+                "M = D\n"); //TODO: FIX THIS
+
+        // now push the LCL
+        outputFile.write("@LCL\n" +
+                "D = M\n" +
+                "@SP\n" +
+                "AM = M + 1\n" +
+                "A = A - 1\n" +
+                "M = D\n");
+
+        // now push ARG
+        outputFile.write("@ARG\n" +
+                "D = M\n" +
+                "@SP\n" +
+                "AM = M + 1\n" +
+                "A = A - 1\n" +
+                "M = D\n");
+
+        // and THIS/THAT
+        outputFile.write("@THIS\n" +
+                "D = M\n" +
+                "@SP\n" +
+                "AM = M + 1\n" +
+                "A = A - 1\n" +
+                "M = D\n");
+        outputFile.write("@THAT\n" +
+                "D = M\n" +
+                "@SP\n" +
+                "AM = M + 1\n" +
+                "A = A - 1\n" +
+                "M = D\n");
+
+        // time to set the arg pointer
+        // we pushed 5 things onto the stack, the callers frame,
+        outputFile.write("@SP\n" +
+                "A = M\n");
+
+        // find the first argument
+        for (int i = 1; i <= (5 + nVars); i++) {
+            outputFile.write("A = A-1\n");
+        }
+
+        outputFile.write("D = A\n" +
+                "@ARG\n" + // now go to ARG and set this value
+                "M = D\n" +
+                "@" + functionName + "\n" +
+                "0;JMP\n"); // jump to the function to execute code
+
+
+        valuableLinesWritten += 37 + (5 + nVars)
+        // end of things to do for the call
+        outputFile.flush();
 
     }
 
     public void writeReturn() {
+        // take the top of the stack and copy it into argument 0
+        String code = "@SP\n" +
+                "A = M-1\n" +// go to the top of the stack
+                "D = M\n" +
+                "";
+
+        outputFile.write(code);
+        outputFile.flush();
 
     }
-
-
 
 
 

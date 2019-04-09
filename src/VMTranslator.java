@@ -54,7 +54,7 @@ public class VMTranslator {
                 codeWriter.writeIfGoTo(parser.getArg2()); // TODO: Write the method for this
             } else if (parser.getCommandType() == CommandType.C_FUNCTION) {
                 if (DEBUG) System.out.println("command type is a function declaration");
-                codeWriter.writeFunction(parser.getArg2(), parser.arg3()) // TODO: Write the method for this
+                codeWriter.writeFunction(parser.getArg2(), parser.arg3()); // TODO: Write the method for this
             } else if (parser.getCommandType() == CommandType.C_CALL) {
                 if (DEBUG) System.out.println("command type is a function call");
                 codeWriter.writeCall(parser.getArg2(), parser.arg3()); // TODO: Write the method for this
