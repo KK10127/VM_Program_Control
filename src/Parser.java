@@ -88,6 +88,7 @@ public class Parser {
         try {
             parse();
         } catch (Exception e) {
+            System.out.println("FATAL ERROR");
             System.out.println(e.getMessage());
             System.exit(0);
         }
@@ -106,7 +107,10 @@ public class Parser {
     private void parse() throws Exception {
 
         StringTokenizer st = new StringTokenizer(cleanLine);
+        if (VMTranslator.DEBUG) System.out.println("\tcleanLine -> " + cleanLine);
+
         String firstWord = st.nextToken(" ");
+        if (VMTranslator.DEBUG) System.out.println("\tfirstWord -> " + firstWord);
 
         if (validateArithmetic(firstWord)) {
             // then it is an arithmetic command
@@ -180,7 +184,12 @@ public class Parser {
                         + badToken + "'");
             }
         } else if (validateFunctionCommand(firstWord)) {
-            String secondWord = st.nextToken(" ");
+            String secondWord = "";
+            try {
+                secondWord = st.nextToken(" ");
+            } catch (Exception e) {
+                System.out.println("nice try buddy");
+            }
 
             // set the command
             switch (firstWord) {
@@ -198,14 +207,16 @@ public class Parser {
             // let this second word be the function name
             // TODO: Check the function name mapper to see if this word has already been mapped
             // TODO: Make a function mapper lol <- combine with the label mapper??
-            arg2 = secondWord;
+            if (!secondWord.equals(""))
+                arg2 = secondWord;
 
             // let the next integer be the nArgs
             // get the specific number (this will be the nArgs)
-            setArg3(Integer.parseInt(st.nextToken()));
+            if (!secondWord.equals(""))
+                setArg3(Integer.parseInt(st.nextToken()));
 
         } else {
-            throw new VMTranslatorException("[INVALID COMMAND]: unrecognized command '" + firstWord + "'");
+            throw new VMTranslatorException("[INVALID COMMAND]: unrecognized command! '" + firstWord + "'");
         }
     }
 
@@ -285,9 +296,8 @@ public class Parser {
         int index = cleanLine.indexOf("//");
 
 
-
         cleanLine = (index != -1)
-                ? cleanLine.substring(0, index).trim().replace(" ","")
+                ? cleanLine.substring(0, index).trim()
                 : cleanLine.trim();
     }
 

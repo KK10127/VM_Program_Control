@@ -23,6 +23,8 @@ public class CodeWriter {
     private int labelNum;
     private int valuableLinesWritten;
     private int currentNumParams;
+    private String fileName;
+
 
     /**
      * Class extension of a HashMap
@@ -255,6 +257,11 @@ public class CodeWriter {
         }
     }
 
+    public void setFileName(String name) {
+        fileName = name;
+    }
+
+
     /**
      * Helper method for building and returning a 'continue' label which is unique.
      * @return (CONTINUE_#) where '#' is a unique label id
@@ -466,19 +473,32 @@ public class CodeWriter {
      */
     public void close() { outputFile.close(); }
 
+    public void writeInit() {
+        outputFile.write("@256\n" +
+                "D = A\n" +
+                "@SP\n" +
+                "M = D\n"// SP = 256
+        );
+        outputFile.flush();
+        writeCall("Sys.init", 0);
+
+        valuableLinesWritten += 4; // TODO: FIX THIS
+    }
+
+
     public void writeLabel(String labelName) {
-        outputFile.write("(" + labelName + ")\n");
+        outputFile.write("// LABEL GENERATION\n(" + labelName + ")\n\n");
         outputFile.flush();
     }
 
     public void writeGoTo(String labelName) {
-        outputFile.write("@" + labelName + "\n0;JMP\n");
+        outputFile.write("// GOTO\n@" + labelName + "\n0;JMP\n\n");
         outputFile.flush();
         valuableLinesWritten += 2;
     }
 
     public void writeIfGoTo(String labelName) {
-        outputFile.write("@SP\nA = M - 1\nD = M + 1\n@" + labelName + "\nD;JEQ\n");
+        outputFile.write("// IF-GOTO\n@SP\nAM = M - 1\nD = M\n@" + labelName + "\nD;JNE\n\n");
         outputFile.flush();
         valuableLinesWritten += 5;
     }
@@ -486,21 +506,20 @@ public class CodeWriter {
     public void writeFunction(String functionName, int nVars) {
         // in assembly, functions are really just labels.
         // so I'm going to simple write a label at this write Command.
-        outputFile.write("(" + functionName + ")\n") ;
+        outputFile.write("// DEFINE FUNCTION " + functionName + "\n(" + functionName + ")\n") ;
         currentNumParams = nVars;
 
-        outputFile.write("@SP\n" +
-                "D = M\n" +
-                "@LCL\n" +
-                "M = D\n" + // point the LCL segment
-                "@SP\n" + // go to SP
-                );
 
-        for (int i = 1; i <= nVars;i++) {
-            outputFile.write("M = M + 1\n"); // move the stack pointer
+        outputFile.flush();
+        for ( int i = 1; i <= nVars; i++) {
+            // PUSH 0
+            writePushPop(CommandType.C_PUSH, "constant", 0);
         }
+        outputFile.flush();
 
-        valuableLinesWritten += (5 + nVars);
+
+        outputFile.write("\n");
+        valuableLinesWritten += (2);
         outputFile.flush();
     }
 
@@ -513,7 +532,7 @@ public class CodeWriter {
 
         // first lets push the function's callers frame onto the stack.
         // push the return address onto the stack
-        outputFile.write("@" + (valuableLinesWritten + 37 + (5 + nVars)) + "\n" +
+        outputFile.write("//CALL + " + functionName + "\n@" + (valuableLinesWritten + 37 + (5 + nVars) + 5) + "\n" +
                 "D = A\n" +
                 "@SP\n" +
                 "AM = M + 1\n" +
@@ -564,10 +583,25 @@ public class CodeWriter {
                 "@ARG\n" + // now go to ARG and set this value
                 "M = D\n" +
                 "@" + functionName + "\n" +
-                "0;JMP\n"); // jump to the function to execute code
+                "0;JMP\n\n"); // jump to the function to execute code
 
 
-        valuableLinesWritten += 37 + (5 + nVars)
+        // reposition LCL
+        outputFile.write("@SP\n" +
+                "D = M\n" +
+                "@LCL\n" +
+                "M = D\n" + // point the LCL segment
+                "@SP\n" // go to SP
+        );
+        outputFile.flush();
+
+        // transfer control GOTO F
+        writeGoTo(functionName);
+
+        // declare a label for the return address
+        valuableLinesWritten += 37 + (5 + nVars) + 5;
+        writeLabel(valuableLinesWritten + "");
+
         // end of things to do for the call
         outputFile.flush();
 
@@ -575,14 +609,74 @@ public class CodeWriter {
 
     public void writeReturn() {
         // take the top of the stack and copy it into argument 0
-        String code = "@SP\n" +
+        String code = "//RETURN CALL\n@SP\n" +
                 "A = M-1\n" +// go to the top of the stack
                 "D = M\n" +
-                "";
+                "@ARG\n" +
+                "A = M\n" +
+                "M = D\n"; // copy top of stack into ARG 0
+
+        // restore segment pointer LCL
+        for (int i = 1; i <= (currentNumParams + 1); i++) {
+            code = code + "A = A + 1\n";
+        }
+        // I am now at  the saved LCL, copy M into D and store in LCL
+        code = code + "D = M\n" +
+                "@LCL\n" +
+                "M = D\n";
+
+        // restore segment pointer THIS
+        code = code + "@ARG\n" +
+                "A = M\n";
+        for (int i = 1; i <= (currentNumParams + 3); i++) {
+            code = code + "A = A + 1\n";
+        }
+        code = code + "D = M\n" +
+                "@THIS\n" +
+                "M = D\n";
+
+        // restore segment pointer THAT
+        code = code + "@ARG\n" +
+                "A = M\n";
+        for (int i = 1; i <= (currentNumParams + 4); i++) {
+            code = code + "A = A + 1\n";
+        }
+        code = code + "D = M\n" +
+                "@THAT\n" +
+                "M = D\n";
+        // restore segment pointer ARG last
+        code = code + "@ARG\n" +
+                "A = M\n";
+        for (int i = 1; i <= (currentNumParams + 2); i++) {
+            code = code + "A = A + 1\n";
+        }
+        code = code + "D = M\n" +
+                "@ARG\n" +
+                "M = D\n";
+
+        //sets SP to after arg 0
+        code = code + "@ARG\n" +
+                "D = M\n" +
+                "@SP\n" +
+                "M = D + 1\n";
+
+        // jump to the return address within the caller's code
+        code = code + "@SP\n" +
+                "A = M\n";
+        for (int i = 1; i <= (currentNumParams - 1); i++) {
+            code = code + "A = A + 1\n";
+        }
+        // I am now at the saved return address jump to this value
+        code = code + "A = M\n" +
+                "0;JMP\n\n";
 
         outputFile.write(code);
         outputFile.flush();
 
+        valuableLinesWritten += 32 +
+                ((currentNumParams -1) < 0 ? (0) : (currentNumParams -1))  +
+                (currentNumParams + 2) + (currentNumParams +4) + (currentNumParams + 3)
+                + (currentNumParams + 1);
     }
 
 
