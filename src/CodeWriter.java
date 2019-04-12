@@ -5,6 +5,8 @@ import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.PrintWriter;
 import java.util.HashMap;
+import java.util.Stack;
+import java.util.StringTokenizer;
 
 
 /**
@@ -24,6 +26,11 @@ public class CodeWriter {
     private int valuableLinesWritten;
     private int currentNumParams;
     private String fileName;
+    private String functionName;
+
+    private Stack<String> functionStack;
+    private Stack<String> functionGraveYard;
+
 
 
     /**
@@ -154,12 +161,21 @@ public class CodeWriter {
             // exception handling technique
             e.printStackTrace();
             System.exit(0); // force quit
-
         }
+
+        StringTokenizer st = new StringTokenizer(VMTranslator.DIRECTORY_NAME);
+        String name = st.nextToken("/");
+        while (st.hasMoreTokens()) {
+            name = st.nextToken("/");
+        }
+        outputFileName = name;
 
         valuableLinesWritten = 0;
         currentNumParams = 0;
         arithmeticMapper = new ArithmeticHashMap();
+        functionStack = new Stack<>();
+        functionGraveYard = new Stack<>();
+        //currentFunction = "";
 
         // build the arithmetic mapper
         arithmeticMapper.put("add", "@SP\n" +
@@ -347,12 +363,12 @@ public class CodeWriter {
                     code = code + "@SP\n" +
                             "AM = M-1\n" +
                             "D = M\n" +
-                            "@" + outputFileName.substring(14,outputFileName.indexOf('.')) + "." + index + "\n" +
+                            "@" + fileName.substring(0, fileName.indexOf('.')) + "." + index + "\n" +
                             "M = D\n";
                     valuableLinesWritten += 5;
                     break;
                 case C_PUSH:
-                    code = code + "@" + outputFileName.substring(14,outputFileName.indexOf('.')) + "." + index + "\n" +
+                    code = code + "@" + fileName.substring(0, fileName.indexOf('.')) + "." + index + "\n" +
                             "D = M\n" +
                             "@SP\n" +
                             "AM = M + 1\n" +
@@ -474,22 +490,39 @@ public class CodeWriter {
     public void close() { outputFile.close(); }
 
     public void writeInit() {
-        outputFile.write("@256\n" +
+        outputFile.write("// SET SP = 256\n@256\n" +
                 "D = A\n" +
                 "@SP\n" +
-                "M = D\n"// SP = 256
+                "M = D\n\n"// SP = 256
         );
         outputFile.flush();
-        writeCall("Sys.init", 0);
 
-        valuableLinesWritten += 4; // TODO: FIX THIS
+        // update the amount of lines written
+        valuableLinesWritten += 4;
+        System.out.println("WRITE INIT: Valuable lines written: " + valuableLinesWritten);
+
+        // perform "call Sys.init"
+        writeCall("Sys.init", 0);
     }
 
 
     public void writeLabel(String labelName) {
-        outputFile.write("// LABEL GENERATION\n(" + labelName + ")\n\n");
+
+        if (!functionStack.isEmpty()) {
+            outputFile.write("// LABEL GENERATION\n" +
+                    "(" + functionStack.peek() + "$" + labelName + ")\n\n");
+        } else if (!functionGraveYard.isEmpty()) {
+            outputFile.write("// LABEL GENERATION\n" +
+                    "(" + functionGraveYard.peek() + "$" + labelName + ")\n\n");
+        } else {
+            outputFile.write("// LABEL GENERATION\n" +
+                    "(" + labelName + ")\n");
+        }
+
         outputFile.flush();
     }
+
+
 
     public void writeGoTo(String labelName) {
         outputFile.write("// GOTO\n@" + labelName + "\n0;JMP\n\n");
@@ -504,35 +537,47 @@ public class CodeWriter {
     }
 
     public void writeFunction(String functionName, int nVars) {
-        // in assembly, functions are really just labels.
-        // so I'm going to simple write a label at this write Command.
-        outputFile.write("// DEFINE FUNCTION " + functionName + "\n(" + functionName + ")\n") ;
-        currentNumParams = nVars;
+        // declare label (f)
+        // repeat nVars times: PUSH const 0
+        functionName = functionName;
 
-
+        outputFile.write("// DEFINE FUNCTION " + functionName + "\n");
         outputFile.flush();
+
+        // declare label (f)
+        writeLabel(functionName);
+
+        // repeat nVars times
         for ( int i = 1; i <= nVars; i++) {
             // PUSH 0
             writePushPop(CommandType.C_PUSH, "constant", 0);
         }
-        outputFile.flush();
 
-
+        // new line to seperate
         outputFile.write("\n");
-        valuableLinesWritten += (2);
         outputFile.flush();
+
     }
 
     public void writeCall(String functionName, int nVars) {
         // calling needs to accomplish the following:
-        // 1. sets the ARG pointer
-        // 2. Saves the callers frame onto the stack
-        //      - return address, saved LCL, ARG, THIS, THAT
-        // 3.
+        // push (return-address)
+        // push LCL
+        // push ARG
+        // push THIS
+        // push THAT
+        // ARG = SP - n - 5
+        // LCL = SP
+        // goto f
+        // label (return-address)
 
-        // first lets push the function's callers frame onto the stack.
+        // we're about to write 42 lines of code
+        valuableLinesWritten += 42;
+
+        System.out.println("CALL valuable lines: " + valuableLinesWritten);
+
         // push the return address onto the stack
-        outputFile.write("//CALL + " + functionName + "\n@" + (valuableLinesWritten + 37 + (5 + nVars) + 5) + "\n" +
+        outputFile.write("// CALL " + functionName + "\n@" + (valuableLinesWritten + 2) + "\n" +
                 "D = A\n" +
                 "@SP\n" +
                 "AM = M + 1\n" +
@@ -540,7 +585,7 @@ public class CodeWriter {
                 "M = D\n"); //TODO: FIX THIS
 
         // now push the LCL
-        outputFile.write("@LCL\n" +
+        outputFile.write("@LCL // push LCL\n" +
                 "D = M\n" +
                 "@SP\n" +
                 "AM = M + 1\n" +
@@ -548,7 +593,7 @@ public class CodeWriter {
                 "M = D\n");
 
         // now push ARG
-        outputFile.write("@ARG\n" +
+        outputFile.write("@ARG // push ARG\n" +
                 "D = M\n" +
                 "@SP\n" +
                 "AM = M + 1\n" +
@@ -556,127 +601,123 @@ public class CodeWriter {
                 "M = D\n");
 
         // and THIS/THAT
-        outputFile.write("@THIS\n" +
+        outputFile.write("@THIS // push THIS\n" +
                 "D = M\n" +
                 "@SP\n" +
                 "AM = M + 1\n" +
                 "A = A - 1\n" +
                 "M = D\n");
-        outputFile.write("@THAT\n" +
+        outputFile.write("@THAT // push THAT\n" +
                 "D = M\n" +
                 "@SP\n" +
                 "AM = M + 1\n" +
                 "A = A - 1\n" +
                 "M = D\n");
 
-        // time to set the arg pointer
-        // we pushed 5 things onto the stack, the callers frame,
-        outputFile.write("@SP\n" +
-                "A = M\n");
+        // ARG = SP - n - 5
+        outputFile.write("@" + nVars + "// ARG = SP - n - 5\n" +
+                "D = A\n" +
+                "@SP\n" +
+                "D = M - D\n" +
+                "@5\n" +
+                "D = D - A\n" +
+                "@ARG\n" +
+                "M = D\n");
 
-        // find the first argument
-        for (int i = 1; i <= (5 + nVars); i++) {
-            outputFile.write("A = A-1\n");
-        }
-
-        outputFile.write("D = A\n" +
-                "@ARG\n" + // now go to ARG and set this value
-                "M = D\n" +
-                "@" + functionName + "\n" +
-                "0;JMP\n\n"); // jump to the function to execute code
+        // LCL = SP
+        outputFile.write("@SP // LCL = SP\n" +
+                        "D = M\n" +
+                        "@LCL\n" +
+                        "M = D\n" ); // point the LCL segment
 
 
-        // reposition LCL
-        outputFile.write("@SP\n" +
-                "D = M\n" +
-                "@LCL\n" +
-                "M = D\n" + // point the LCL segment
-                "@SP\n" // go to SP
-        );
         outputFile.flush();
+
 
         // transfer control GOTO F
         writeGoTo(functionName);
 
         // declare a label for the return address
-        valuableLinesWritten += 37 + (5 + nVars) + 5;
-        writeLabel(valuableLinesWritten + "");
+        writeLabel("" + valuableLinesWritten);
 
         // end of things to do for the call
-        outputFile.flush();
-
     }
 
     public void writeReturn() {
-        // take the top of the stack and copy it into argument 0
-        String code = "//RETURN CALL\n@SP\n" +
-                "A = M-1\n" +// go to the top of the stack
+
+        // FRAME = LCL
+        outputFile.write("// RETURN\n@LCL // FRAME = LCL\n" +
+                "D = M\n" +
+                "@FRAME\n" +
+                "M = D\n");
+
+        // RET = *(FRAME - 5)
+        outputFile.write("@FRAME // RET = *(FRAME - 5)\n" +
+                "D = M\n" +
+                "@5\n" +
+                "A = D - A\n" +
+                "D = M\n" +
+                "@RET\n" +
+                "M = D\n");
+
+        // *ARG = pop()
+        outputFile.write("@SP //*ARG = pop()\n" +
+                "AM = M-1\n" +
                 "D = M\n" +
                 "@ARG\n" +
                 "A = M\n" +
-                "M = D\n"; // copy top of stack into ARG 0
+                "M = D\n");
 
-        // restore segment pointer LCL
-        for (int i = 1; i <= (currentNumParams + 1); i++) {
-            code = code + "A = A + 1\n";
-        }
-        // I am now at  the saved LCL, copy M into D and store in LCL
-        code = code + "D = M\n" +
-                "@LCL\n" +
-                "M = D\n";
-
-        // restore segment pointer THIS
-        code = code + "@ARG\n" +
-                "A = M\n";
-        for (int i = 1; i <= (currentNumParams + 3); i++) {
-            code = code + "A = A + 1\n";
-        }
-        code = code + "D = M\n" +
-                "@THIS\n" +
-                "M = D\n";
-
-        // restore segment pointer THAT
-        code = code + "@ARG\n" +
-                "A = M\n";
-        for (int i = 1; i <= (currentNumParams + 4); i++) {
-            code = code + "A = A + 1\n";
-        }
-        code = code + "D = M\n" +
-                "@THAT\n" +
-                "M = D\n";
-        // restore segment pointer ARG last
-        code = code + "@ARG\n" +
-                "A = M\n";
-        for (int i = 1; i <= (currentNumParams + 2); i++) {
-            code = code + "A = A + 1\n";
-        }
-        code = code + "D = M\n" +
-                "@ARG\n" +
-                "M = D\n";
-
-        //sets SP to after arg 0
-        code = code + "@ARG\n" +
-                "D = M\n" +
+        // SP = ARG + 1
+        outputFile.write("@ARG // SP = ARG + 1\n" +
+                "D = M + 1\n" +
                 "@SP\n" +
-                "M = D + 1\n";
+                "M = D\n");
 
-        // jump to the return address within the caller's code
-        code = code + "@SP\n" +
-                "A = M\n";
-        for (int i = 1; i <= (currentNumParams - 1); i++) {
-            code = code + "A = A + 1\n";
-        }
-        // I am now at the saved return address jump to this value
-        code = code + "A = M\n" +
-                "0;JMP\n\n";
+        // THAT = *(FRAME - 1)
+        outputFile.write("@FRAME // THAT = *(FRAME - 1)\n" +
+                "A = M -1\n" +
+                "D = M\n" +
+                "@THAT\n" +
+                "M = D\n");
 
-        outputFile.write(code);
+        // THIS = *(FRAME - 2)
+        outputFile.write("@FRAME // THIS = *(FRAME - 2)\n" +
+                "D = M\n" +
+                "@2\n" +
+                "A = D - A\n" +
+                "D = M\n" +
+                "@THIS\n" +
+                "M = D\n");
+
+        // ARG = *(FRAME - 3)
+        outputFile.write("@FRAME // ARG = *(FRAME - 3)\n" +
+                "D = M\n" +
+                "@3\n" +
+                "A = D - A\n" +
+                "D = M\n" +
+                "@ARG\n" +
+                "M = D\n");
+
+        // LCL = *(FRAME - 4)
+        outputFile.write("@FRAME // LCL = *(FRAME-4)\n" +
+                "D = M\n" +
+                "@4\n" +
+                "A = D - A\n" +
+                "D = M\n" +
+                "@LCL\n" +
+                "M = D\n");
+
+        // goto RET
+        outputFile.write("@RET // goto RET\n" +
+                "A = M\n" +
+                "0;JMP\n");
+
+        // flush all code
         outputFile.flush();
 
-        valuableLinesWritten += 32 +
-                ((currentNumParams -1) < 0 ? (0) : (currentNumParams -1))  +
-                (currentNumParams + 2) + (currentNumParams +4) + (currentNumParams + 3)
-                + (currentNumParams + 1);
+        valuableLinesWritten += 50;
+
     }
 
 

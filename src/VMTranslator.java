@@ -17,7 +17,7 @@ public class VMTranslator {
 
     public static final boolean DEBUG = true;
     public static final String DIRECTORY_NAME
-            = "src/HW09_TestFiles/FunctionCalls/SimpleFunction";
+            = "src/HW09_TestFiles/FunctionCalls/FibonacciElement";
 
     /** CodeWriter object for writing the code for each command **/
     private CodeWriter codeWriter;
@@ -59,6 +59,8 @@ public class VMTranslator {
             System.exit(0);
         }
 
+        codeWriter.writeInit();
+
         for (File e : vmFiles) {
             // inform the codeWriter we translating a new file
             codeWriter.setFileName(e.getName());
@@ -67,8 +69,6 @@ public class VMTranslator {
 
             // set up parser and codeWriter streams
             Parser parser = new Parser(e.getPath());
-
-            codeWriter.writeInit();
 
             // while parser can continue
             while (parser.hasMoreCommands()) {
