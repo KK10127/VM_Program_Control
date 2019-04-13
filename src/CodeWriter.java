@@ -20,18 +20,10 @@ public class CodeWriter {
     /** connection to the output file where our hack assembly code will be written **/
     private PrintWriter outputFile;
     private ArithmeticHashMap arithmeticMapper;
-    private IdentifierMapper identifierMapper;
-    private String outputFileName;
     private int labelNum;
     private int valuableLinesWritten;
-    private int currentNumParams;
     private String fileName;
     private String functionName;
-
-    private Stack<String> functionStack;
-    private Stack<String> functionGraveYard;
-
-
 
     /**
      * Class extension of a HashMap
@@ -141,41 +133,36 @@ public class CodeWriter {
         }
     }
 
-
     /**
      * Opens the output file stream and gets ready to write to it.
      * @param fileName the name of the desired output file as a string
      */
     public CodeWriter(String fileName) {
-
-
        // next block of code might throw an exception
         try {
-
             // establish the connection to the output file
-            outputFileName = fileName;
             outputFile = new PrintWriter(fileName);
-
         } catch (FileNotFoundException e) { // catch that shit
-
             // exception handling technique
             e.printStackTrace();
             System.exit(0); // force quit
         }
 
+        // get the name of the file without the extension. T
         StringTokenizer st = new StringTokenizer(VMTranslator.DIRECTORY_NAME);
         String name = st.nextToken("/");
         while (st.hasMoreTokens()) {
             name = st.nextToken("/");
         }
-        outputFileName = name;
 
+        // initialize our lines written
         valuableLinesWritten = 0;
-        currentNumParams = 0;
+
+        // initialize our arithmetic hashmap which maps arithmetic translations.
         arithmeticMapper = new ArithmeticHashMap();
-        functionStack = new Stack<>();
-        functionGraveYard = new Stack<>();
-        //currentFunction = "";
+
+        // function name
+        functionName = "";
 
         // build the arithmetic mapper
         arithmeticMapper.put("add", "@SP\n" +
@@ -273,10 +260,13 @@ public class CodeWriter {
         }
     }
 
+    /**
+     * Sets the fileName instance variable to the given name.
+     * @param name The name of the file as the string.
+     */
     public void setFileName(String name) {
         fileName = name;
     }
-
 
     /**
      * Helper method for building and returning a 'continue' label which is unique.
@@ -293,7 +283,6 @@ public class CodeWriter {
     public String getTrueLabel() {
         return "(TRUE_" + labelNum + ")\n";
     }
-
 
     /**
      * Writes to the output file the assembly code that implements the given command where
@@ -489,6 +478,9 @@ public class CodeWriter {
      */
     public void close() { outputFile.close(); }
 
+    /**
+     * Writes the bootstrap code into the assembly file.
+     */
     public void writeInit() {
         outputFile.write("// SET SP = 256\n@256\n" +
                 "D = A\n" +
@@ -499,53 +491,59 @@ public class CodeWriter {
 
         // update the amount of lines written
         valuableLinesWritten += 4;
-        System.out.println("WRITE INIT: Valuable lines written: " + valuableLinesWritten);
+        if (VMTranslator.DEBUG) System.out.println("WRITE INIT: Valuable lines written: " + valuableLinesWritten);
 
         // perform "call Sys.init"
         writeCall("Sys.init", 0);
     }
 
-
+    /**
+     * Generates a label in assembly language.
+     * @param labelName
+     */
     public void writeLabel(String labelName) {
-
-        if (!functionStack.isEmpty()) {
-            outputFile.write("// LABEL GENERATION\n" +
-                    "(" + functionStack.peek() + "$" + labelName + ")\n\n");
-        } else if (!functionGraveYard.isEmpty()) {
-            outputFile.write("// LABEL GENERATION\n" +
-                    "(" + functionGraveYard.peek() + "$" + labelName + ")\n\n");
-        } else {
-            outputFile.write("// LABEL GENERATION\n" +
-                    "(" + labelName + ")\n");
-        }
-
+        outputFile.write("// LABEL GENERATION\n" +
+                    "(" + functionName + "$" + labelName + ")\n");
         outputFile.flush();
     }
 
-
-
+    /**
+     * Writes a simple GOTO command given the label name.
+     * @param labelName the label name as a string.
+     */
     public void writeGoTo(String labelName) {
-        outputFile.write("// GOTO\n@" + labelName + "\n0;JMP\n\n");
+        outputFile.write("// GOTO\n@" + functionName + "$" + labelName + "\n0;JMP\n\n");
         outputFile.flush();
         valuableLinesWritten += 2;
     }
 
+    /**
+     * Wites a simple if-GOTO command given the label name.
+     * @param labelName the label name as a string.
+     */
     public void writeIfGoTo(String labelName) {
-        outputFile.write("// IF-GOTO\n@SP\nAM = M - 1\nD = M\n@" + labelName + "\nD;JNE\n\n");
+        outputFile.write("// IF-GOTO\n@SP\nAM = M - 1\nD = M\n@" + functionName + "$" + labelName + "\nD;JNE\n\n");
         outputFile.flush();
         valuableLinesWritten += 5;
     }
 
+    /**
+     * Writes a function call in assembly language given the function name and
+     * the number of local variables it contains.
+     * @param functionName the function name as a string.
+     * @param nVars the number of local variables in the function.
+     */
     public void writeFunction(String functionName, int nVars) {
         // declare label (f)
         // repeat nVars times: PUSH const 0
-        functionName = functionName;
+        this.functionName = functionName;
 
         outputFile.write("// DEFINE FUNCTION " + functionName + "\n");
         outputFile.flush();
 
         // declare label (f)
-        writeLabel(functionName);
+        outputFile.write("(" + functionName + ")\n");
+        outputFile.flush();
 
         // repeat nVars times
         for ( int i = 1; i <= nVars; i++) {
@@ -559,6 +557,11 @@ public class CodeWriter {
 
     }
 
+    /**
+     * Writes the assembly language for a function call.
+     * @param functionName the function name as a string.
+     * @param nVars the number of arguments to take off the stack
+     */
     public void writeCall(String functionName, int nVars) {
         // calling needs to accomplish the following:
         // push (return-address)
@@ -630,9 +633,7 @@ public class CodeWriter {
                         "@LCL\n" +
                         "M = D\n" ); // point the LCL segment
 
-
         outputFile.flush();
-
 
         // transfer control GOTO F
         writeGoTo(functionName);
@@ -643,6 +644,9 @@ public class CodeWriter {
         // end of things to do for the call
     }
 
+    /**
+     * Writes the assembly language for a return command.
+     */
     public void writeReturn() {
 
         // FRAME = LCL
@@ -715,12 +719,6 @@ public class CodeWriter {
 
         // flush all code
         outputFile.flush();
-
         valuableLinesWritten += 50;
-
     }
-
-
-
-
 }

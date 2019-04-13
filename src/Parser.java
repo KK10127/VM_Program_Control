@@ -145,8 +145,6 @@ public class Parser {
             commandType = CommandType.C_POP;
             arg2 = secondWord;
 
-
-
             // get the specific number
             setArg3(Integer.parseInt(st.nextToken()));
 
@@ -220,15 +218,26 @@ public class Parser {
         }
     }
 
+    /**
+     * Accessor method for the command type of the current line.
+     * @return the command type as an enum CommandType
+     */
     public CommandType getCommandType() {
         return commandType;
     }
 
+    /**
+     * Accessor method for the arg2 field.
+     * @return arg2 string
+     */
     public String getArg2() {
         return arg2;
     }
 
-
+    /**
+     * Accessor method for the lines read
+     * @return lines read as a string
+     */
     public String getLinesRead() { return lineNumber + ""; }
 
 
@@ -337,6 +346,4 @@ public class Parser {
     public void setArg3(int arg3) {
         this.arg3 = arg3;
     }
-
-
 }

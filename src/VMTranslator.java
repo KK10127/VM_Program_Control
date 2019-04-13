@@ -12,17 +12,18 @@ import java.util.StringTokenizer;
  *
  * INPUT: fileName.vm
  * OUTPUT: fileName.asm
+ *
+ * @author Jay Montoya
  */
 public class VMTranslator {
 
+    // constants
     public static final boolean DEBUG = true;
     public static final String DIRECTORY_NAME
             = "src/HW09_TestFiles/FunctionCalls/FibonacciElement";
 
     /** CodeWriter object for writing the code for each command **/
     private CodeWriter codeWriter;
-
-    /** Parser object for advancing through the file and parsing. **/
 
     /** the evil main method that drives the entire VMTranslator-inator **/
     public static void main(String[] args) {
@@ -36,10 +37,11 @@ public class VMTranslator {
         while (st.hasMoreTokens()) {
             name = st.nextToken("/");
         }
-        System.out.println("Directory name is: " + name);
 
+        if (DEBUG) System.out.println("Directory name is: " + name);
+
+        // create a new codewriter
         CodeWriter codeWriter = new CodeWriter(DIRECTORY_NAME + "/" + name + ".asm");
-
 
         //code to find all vmFiles in the directory and add them to the ArrayList
         File dir = new File(DIRECTORY_NAME);
@@ -59,13 +61,14 @@ public class VMTranslator {
             System.exit(0);
         }
 
+        // write the bootstrap code
         codeWriter.writeInit();
 
+        // for every vm file we have
         for (File e : vmFiles) {
             // inform the codeWriter we translating a new file
             codeWriter.setFileName(e.getName());
             if (DEBUG) System.out.println("file changed! now translating " + e.getName());
-
 
             // set up parser and codeWriter streams
             Parser parser = new Parser(e.getPath());
@@ -110,11 +113,8 @@ public class VMTranslator {
             }
 
             if (DEBUG) System.out.println("\tprocess finished | " + parser.getLinesRead() + " lines read");
-
         }
         codeWriter.writeEnding();
-
-
         codeWriter.close();
     }
 }
